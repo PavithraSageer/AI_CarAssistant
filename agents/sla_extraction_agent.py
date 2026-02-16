@@ -1,38 +1,26 @@
-"""
-SLA Extraction Agent
---------------------
-This agent extracts key financial clauses from
-a car lease or loan contract.
+import re
 
-Responsibilities:
-- Extract APR / Interest rate
-- Extract Lease/Loan term
-- Extract Monthly payment
-- Extract Down payment
-- Extract Mileage allowance
-- Extract Penalties
-- Extract Early termination clause
-"""
+def simple_sla_extraction(contract_text):
+    data = {}
 
-def extract_sla(contract_text):
-    print("SLA Extraction Agent running...")
+    apr_match = re.search(r'APR\):?\s*([\d.]+)%', contract_text)
+    if apr_match:
+        data["apr"] = float(apr_match.group(1))
 
-    # Placeholder logic (LLM integration will be added later)
-    extracted_data = {
-        "apr": None,
-        "term": None,
-        "monthly_payment": None,
-        "down_payment": None,
-        "mileage_limit": None,
-        "penalties": None,
-        "early_termination": None
-    }
+    term_match = re.search(r'period of\s*(\d+)\s*months', contract_text)
+    if term_match:
+        data["term_months"] = int(term_match.group(1))
 
-    return extracted_data
+    payment_match = re.search(r'Monthly Lease Payment:\s*USD\s*([\d,]+)', contract_text)
+    if payment_match:
+        data["monthly_payment"] = payment_match.group(1)
 
+    down_match = re.search(r'Down Payment:\s*USD\s*([\d,]+)', contract_text)
+    if down_match:
+        data["down_payment"] = down_match.group(1)
 
-# Example test run (for development purpose)
-if __name__ == "__main__":
-    sample_text = "This lease has an APR of 7.5% for 36 months with monthly payment of 25000."
-    result = extract_sla(sample_text)
-    print(result)
+    mileage_match = re.search(r'Allowed Mileage:\s*([\d,]+)', contract_text)
+    if mileage_match:
+        data["mileage_per_year"] = mileage_match.group(1)
+
+    return data
