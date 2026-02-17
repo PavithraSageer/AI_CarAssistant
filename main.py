@@ -1,4 +1,4 @@
-from PyPDF2 import PdfReader
+from agents.document_handler_agent import extract_text_from_file
 from agents.coordinator_agent import process_contract
 from agents.summary_agent import generate_response
 
@@ -14,7 +14,7 @@ def extract_text_from_pdf(file_path):
 def main():
     pdf_path = "chevrolet.pdf"
 
-    raw_text = extract_text_from_pdf(pdf_path)
+    raw_text = extract_text_from_file(pdf_path)
 
     sla_data, validation_issues, risk_report = process_contract(raw_text)
 
