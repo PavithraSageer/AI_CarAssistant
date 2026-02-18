@@ -6,6 +6,11 @@ from agents.coordinator_agent import process_contract
 
 app = Flask(__name__)
 
+# Home route (to check if server is running)
+@app.route("/")
+def home():
+    return "Car Lease AI Assistant Backend is Running Successfully!"
+
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -24,7 +29,7 @@ def upload_file():
     # Process contract
     sla_data, validation_issues, risk_report = process_contract(raw_text)
 
-    # Save extracted text (storage layer)
+    # Save extracted text
     save_extracted_text(file.filename, raw_text)
 
     return jsonify({
@@ -42,4 +47,3 @@ def save_extracted_text(filename, text):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
