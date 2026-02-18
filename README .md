@@ -47,7 +47,7 @@ pip install -r requirements.txt
 Place a lease document (PDF or image) in the root folder.
 
 Then run:
-python main.py
+  python main.py
 
 
 The system will:
@@ -57,6 +57,24 @@ The system will:
 3. Process SLA data
 4. Perform validation
 5. Generate risk analysis summary
+
+
+## 🌐 API Usage
+
+Run the Flask server:
+
+  python app.py
+
+Then upload a contract using POST request to:
+
+  /upload
+
+The API will return 
+- structured SLA data
+- validation results
+- risk analysis output
+
+Extracted contract text is saved inside the `storage/` folder.
 
 ---
 
