@@ -26,17 +26,13 @@ def upload_file():
     # Extract text
     raw_text = extract_text_from_file(file_path)
 
-    # Process contract
-    sla_data, validation_issues, risk_report = process_contract(raw_text)
+    # Process contract (UPDATED)
+    result = process_contract(raw_text)
 
     # Save extracted text
     save_extracted_text(file.filename, raw_text)
 
-    return jsonify({
-        "sla_data": sla_data,
-        "validation_issues": validation_issues,
-        "risk_report": risk_report
-    })
+    return jsonify(result)
 
 
 def save_extracted_text(filename, text):
