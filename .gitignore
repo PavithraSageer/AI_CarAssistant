@@ -7,3 +7,6 @@ dist/
 .venv/
 venv/
 *.egg-info/
+backend/.env
+**/__pycache__/
+**/*.pyc
