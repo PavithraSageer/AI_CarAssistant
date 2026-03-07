@@ -1,15 +1,26 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
-import fitz  
+from fastapi.middleware.cors import CORSMiddleware
+import fitz
 import re
 import shutil
 import os
 
 app = FastAPI()
 
+# Enable CORS so frontend apps (Lovable) can call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def home():
     return {"message": "Car Contract Analyzer API Running"}
+
 
 def extract_text_from_pdf(file_path):
 
@@ -20,6 +31,7 @@ def extract_text_from_pdf(file_path):
         text += page.get_text()
 
     return text
+
 
 def extract_vin(text):
 
@@ -82,6 +94,7 @@ def calculate_fairness(text):
 
     return score, issues
 
+
 def risk_level(score):
 
     if score >= 90:
@@ -92,6 +105,7 @@ def risk_level(score):
 
     else:
         return "High Risk"
+
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
