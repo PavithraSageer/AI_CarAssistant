@@ -1,14 +1,16 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import fitz
 import re
 import shutil
 import os
+import requests
+import openai
 
 app = FastAPI()
 
-# Enable CORS so frontend apps (Lovable) can call the API
+# Enable CORS so frontend apps can call the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,10 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# OpenAI key from Render environment variable
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
 @app.get("/")
 def home():
-    return {"message": "Car Contract Analyzer API Running"}
+    return {"message": "DealGuard Car Contract Analyzer API Running"}
 
+
+# ---------------- PDF TEXT EXTRACTION ---------------- #
 
 def extract_text_from_pdf(file_path):
 
@@ -33,10 +41,11 @@ def extract_text_from_pdf(file_path):
     return text
 
 
+# ---------------- VIN EXTRACTION ---------------- #
+
 def extract_vin(text):
 
     vin_pattern = r'\b[A-HJ-NPR-Z0-9]{17}\b'
-
     matches = re.findall(vin_pattern, text)
 
     if matches:
@@ -44,6 +53,8 @@ def extract_vin(text):
 
     return "VIN not found"
 
+
+# ---------------- FAIRNESS ANALYSIS ---------------- #
 
 def calculate_fairness(text):
 
@@ -95,6 +106,8 @@ def calculate_fairness(text):
     return score, issues
 
 
+# ---------------- RISK LEVEL ---------------- #
+
 def risk_level(score):
 
     if score >= 90:
@@ -106,6 +119,8 @@ def risk_level(score):
     else:
         return "High Risk"
 
+
+# ---------------- CONTRACT ANALYSIS ---------------- #
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
@@ -135,3 +150,65 @@ async def upload_file(file: UploadFile = File(...)):
             "extracted_text": extracted_text
         }
     )
+
+
+# ---------------- VIN LOOKUP ---------------- #
+
+@app.get("/vin/{vin_number}")
+def vin_lookup(vin_number: str):
+
+    url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin_number}?format=json"
+
+    response = requests.get(url)
+    data = response.json()
+
+    if data["Results"]:
+        car = data["Results"][0]
+
+        return {
+            "VIN": vin_number,
+            "Make": car.get("Make"),
+            "Model": car.get("Model"),
+            "Year": car.get("ModelYear"),
+            "BodyClass": car.get("BodyClass"),
+            "Engine": car.get("EngineModel"),
+            "FuelType": car.get("FuelTypePrimary")
+        }
+
+    return {"error": "VIN not found"}
+
+
+# ---------------- AI CHATBOT ---------------- #
+
+@app.post("/chat/")
+async def chat_assistant(
+    message: str = Body(...),
+    contract_text: str = Body("")
+):
+
+    prompt = f"""
+You are DealGuard AI, a vehicle contract negotiation assistant.
+
+Help users understand risks in car purchase contracts and give negotiation advice.
+
+Contract text:
+{contract_text}
+
+User question:
+{message}
+
+Give clear, short, helpful advice.
+"""
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a helpful vehicle contract assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=250
+    )
+
+    reply = response["choices"][0]["message"]["content"]
+
+    return {"response": reply}
