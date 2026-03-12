@@ -10,7 +10,6 @@ import openai
 
 app = FastAPI()
 
-# Enable CORS so frontend apps can call the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI key from Render environment variable
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -28,7 +27,7 @@ def home():
     return {"message": "DealGuard Car Contract Analyzer API Running"}
 
 
-# ---------------- PDF TEXT EXTRACTION ---------------- #
+
 
 def extract_text_from_pdf(file_path):
 
@@ -41,7 +40,6 @@ def extract_text_from_pdf(file_path):
     return text
 
 
-# ---------------- VIN EXTRACTION ---------------- #
 
 def extract_vin(text):
 
@@ -54,7 +52,6 @@ def extract_vin(text):
     return "VIN not found"
 
 
-# ---------------- FAIRNESS ANALYSIS ---------------- #
 
 def calculate_fairness(text):
 
@@ -106,7 +103,7 @@ def calculate_fairness(text):
     return score, issues
 
 
-# ---------------- RISK LEVEL ---------------- #
+
 
 def risk_level(score):
 
@@ -120,7 +117,6 @@ def risk_level(score):
         return "High Risk"
 
 
-# ---------------- CONTRACT ANALYSIS ---------------- #
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
@@ -152,7 +148,6 @@ async def upload_file(file: UploadFile = File(...)):
     )
 
 
-# ---------------- VIN LOOKUP ---------------- #
 
 @app.get("/vin/{vin_number}")
 def vin_lookup(vin_number: str):
@@ -178,7 +173,7 @@ def vin_lookup(vin_number: str):
     return {"error": "VIN not found"}
 
 
-# ---------------- AI CHATBOT ---------------- #
+
 
 @app.post("/chat/")
 async def chat_assistant(
