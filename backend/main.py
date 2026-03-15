@@ -6,9 +6,10 @@ import re
 import shutil
 import os
 import requests
-import google.generativeai as genai
+from openai import OpenAI
 
 app = FastAPI()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,23 +19,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/models")
-def list_models():
-    models = []
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY")
+)
 
-    for m in genai.list_models():
-        models.append(m.name)
 
-    return {"available_models": models}
-
-# Configure Gemini AI
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.0-flash")
-
+contract_memory = {
+    "text": ""
+}
 
 @app.get("/")
 def home():
     return {"message": "DealGuard Car Contract Analyzer API Running"}
+
 
 
 def extract_text_from_pdf(file_path):
@@ -109,6 +107,7 @@ def calculate_fairness(text):
     return score, issues
 
 
+
 def risk_level(score):
 
     if score >= 90:
@@ -119,6 +118,7 @@ def risk_level(score):
 
     else:
         return "High Risk"
+
 
 
 @app.post("/upload/")
@@ -139,6 +139,9 @@ async def upload_file(file: UploadFile = File(...)):
 
     os.remove(file_location)
 
+ 
+    contract_memory["text"] = extracted_text
+
     return JSONResponse(
         content={
             "filename": file.filename,
@@ -149,6 +152,7 @@ async def upload_file(file: UploadFile = File(...)):
             "extracted_text": extracted_text
         }
     )
+
 
 
 @app.get("/vin/{vin_number}")
@@ -163,31 +167,28 @@ def vin_lookup(vin_number: str):
         car = data["Results"][0]
 
         return {
-            "vin": vin_number,
-            "make": car.get("Make"),
-            "model": car.get("Model"),
-            "year": car.get("ModelYear"),
-            "body_class": car.get("BodyClass"),
-            "engine": car.get("EngineModel"),
-            "fuel_type": car.get("FuelTypePrimary")
+            "VIN": vin_number,
+            "Make": car.get("Make"),
+            "Model": car.get("Model"),
+            "Year": car.get("ModelYear"),
+            "BodyClass": car.get("BodyClass"),
+            "Engine": car.get("EngineModel"),
+            "FuelType": car.get("FuelTypePrimary")
         }
 
     return {"error": "VIN not found"}
 
 
+
 @app.post("/chat/")
-async def chat_assistant(
-    message: str = Body(...),
-    contract_text: str = Body("")
-):
+async def chat_assistant(message: str = Body(...)):
+
+    contract_text = contract_memory.get("text", "")
 
     prompt = f"""
-You are DealGuard AI, an assistant that reviews vehicle purchase or lease contracts.
+You are DealGuard AI, a car contract assistant.
 
-Your tasks:
-1. Identify risky or unfair clauses
-2. Explain contract terms clearly
-3. Suggest negotiation strategies
+A user uploaded a vehicle contract.
 
 Contract Text:
 {contract_text}
@@ -195,19 +196,25 @@ Contract Text:
 User Question:
 {message}
 
-Give short, clear, practical advice.
+Answer clearly and give helpful negotiation or safety advice.
+If the answer is not in the contract, say so.
 """
 
     try:
 
-        response = model.generate_content(prompt,
-                                         generation_config = {
-                                             "max_output_tokens": 200,
-                                             "temperature": 0.4
-                                         }
-                                         )
+        response = client.chat.completions.create(
+            model="arcee-ai/trinity-mini:free",
+            messages=[
+                {"role": "system", "content": "You are a vehicle contract expert."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
 
-        return {"response": response.text}
+        reply = response.choices[0].message.content
+
+        return {"response": reply}
 
     except Exception as e:
+
         return {"response": f"AI error: {str(e)}"}
