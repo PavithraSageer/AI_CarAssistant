@@ -6,7 +6,7 @@ import re
 import shutil
 import os
 import requests
-import openai
+from openai import OpenAI
 
 app = FastAPI()
 
@@ -18,8 +18,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 @app.get("/")
@@ -27,10 +27,7 @@ def home():
     return {"message": "DealGuard Car Contract Analyzer API Running"}
 
 
-
-
 def extract_text_from_pdf(file_path):
-
     doc = fitz.open(file_path)
     text = ""
 
@@ -38,7 +35,6 @@ def extract_text_from_pdf(file_path):
         text += page.get_text()
 
     return text
-
 
 
 def extract_vin(text):
@@ -50,7 +46,6 @@ def extract_vin(text):
         return matches[0]
 
     return "VIN not found"
-
 
 
 def calculate_fairness(text):
@@ -103,8 +98,6 @@ def calculate_fairness(text):
     return score, issues
 
 
-
-
 def risk_level(score):
 
     if score >= 90:
@@ -115,7 +108,6 @@ def risk_level(score):
 
     else:
         return "High Risk"
-
 
 
 @app.post("/upload/")
@@ -148,7 +140,6 @@ async def upload_file(file: UploadFile = File(...)):
     )
 
 
-
 @app.get("/vin/{vin_number}")
 def vin_lookup(vin_number: str):
 
@@ -161,18 +152,16 @@ def vin_lookup(vin_number: str):
         car = data["Results"][0]
 
         return {
-            "VIN": vin_number,
-            "Make": car.get("Make"),
-            "Model": car.get("Model"),
-            "Year": car.get("ModelYear"),
-            "BodyClass": car.get("BodyClass"),
-            "Engine": car.get("EngineModel"),
-            "FuelType": car.get("FuelTypePrimary")
+            "vin": vin_number,
+            "make": car.get("Make"),
+            "model": car.get("Model"),
+            "year": car.get("ModelYear"),
+            "body_class": car.get("BodyClass"),
+            "engine": car.get("EngineModel"),
+            "fuel_type": car.get("FuelTypePrimary")
         }
 
     return {"error": "VIN not found"}
-
-
 
 
 @app.post("/chat/")
@@ -182,28 +171,37 @@ async def chat_assistant(
 ):
 
     prompt = f"""
-You are DealGuard AI, a vehicle contract negotiation assistant.
+You are DealGuard AI, an assistant that reviews vehicle purchase or lease contracts.
 
-Help users understand risks in car purchase contracts and give negotiation advice.
+Your tasks:
+1. Identify risky or unfair clauses.
+2. Explain contract terms clearly.
+3. Suggest negotiation strategies if needed.
 
-Contract text:
+Contract Text:
 {contract_text}
 
-User question:
+User Question:
 {message}
 
-Give clear, short, helpful advice.
+Give short, clear, practical advice.
 """
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a helpful vehicle contract assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=250
-    )
+    try:
 
-    reply = response["choices"][0]["message"]["content"]
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful vehicle contract risk analysis assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=250,
+            temperature=0.4
+        )
 
-    return {"response": reply}
+        reply = response.choices[0].message.content
+
+        return {"response": reply}
+
+    except Exception as e:
+        return {"response": f"AI error: {str(e)}"}
