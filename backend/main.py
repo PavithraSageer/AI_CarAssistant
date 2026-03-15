@@ -18,6 +18,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/models")
+def list_models():
+    models = []
+
+    for m in genai.list_models():
+        models.append(m.name)
+
+    return {"available_models": models}
+
 # Configure Gemini AI
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-1.5-flash-001")
