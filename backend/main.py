@@ -200,7 +200,12 @@ Give short, clear, practical advice.
 
     try:
 
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt,
+                                         generation_config = {
+                                             "max_output_tokens": 200,
+                                             "temperature": 0.4
+                                         }
+                                         )
 
         return {"response": response.text}
 
