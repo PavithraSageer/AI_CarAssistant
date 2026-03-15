@@ -1,5 +1,4 @@
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import fitz 
@@ -24,6 +23,7 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
+# In-memory storage for the AI context
 contract_memory = {"text": ""}
 
 class ChatRequest(BaseModel):
@@ -31,14 +31,24 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "Online", "message": "DealGuard API"}
+    return {"status": "Online", "service": "DealGuard"}
 
-def extract_vin(text):
-    # Regex for 17-char VIN
-    clean_text = re.sub(r'\s+', '', text)
-    vin_pattern = r'[A-HJ-NPR-Z0-9]{17}'
-    match = re.search(vin_pattern, clean_text)
-    return match.group(0) if match else "VIN not found"
+def get_vehicle_details(vin):
+    if not vin or len(vin) < 17 or "not found" in vin.lower():
+        return None
+    try:
+        url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin}?format=json"
+        res = requests.get(url, timeout=5)
+        data = res.json().get("Results", [{}])[0]
+        # Consolidating specs into a clean object
+        return {
+            "Make": data.get("Make"),
+            "Model": data.get("Model"),
+            "Year": data.get("ModelYear"),
+            "Body": data.get("BodyClass")
+        }
+    except:
+        return None
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
@@ -46,13 +56,20 @@ async def upload_file(file: UploadFile = File(...)):
     try:
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
         doc = fitz.open(file_location)
         text = "".join([page.get_text() for page in doc])
         contract_memory["text"] = text
         
-        vin = extract_vin(text)
+        # Aggressive VIN extraction (strips spaces first)
+        clean_text = re.sub(r'\s+', '', text)
+        vin_match = re.search(r'[A-HJ-NPR-Z0-9]{17}', clean_text)
+        vin = vin_match.group(0) if vin_match else "Not Found"
         
-        # Scoring logic
+        # Fetch specs immediately so the frontend has them in one go
+        specs = get_vehicle_details(vin)
+        
+        # Harsher scoring for risky deals
         score = 100
         issues = []
         t = text.lower()
@@ -61,44 +78,34 @@ async def upload_file(file: UploadFile = File(...)):
             issues.append("AS-IS: No protection if the car breaks.")
         if "non-refundable" in t:
             score -= 25
-            issues.append("Non-Refundable: You lose your deposit no matter what.")
+            issues.append("Non-Refundable Deposit: High risk of losing money.")
         if "assumes all risk" in t:
             score -= 20
-            issues.append("High Liability: You take all legal blame.")
+            issues.append("High Liability: Seller is not responsible for defects.")
 
-        return {"vin": vin, "fairness_score": max(0, score), "issues": issues}
+        return {
+            "vin": vin,
+            "fairness_score": max(0, score),
+            "risk_level": "High" if score < 60 else "Medium" if score < 85 else "Low",
+            "issues": issues,
+            "specs": specs # Included in the primary response
+        }
     finally:
-        if os.path.exists(file_location): os.remove(file_location)
-
-@app.get("/vin/{vin_number}")
-def vin_lookup(vin_number: str):
-    # If the frontend passes the string "VIN not found", stop here
-    if len(vin_number) < 17:
-        return {"error": "Invalid VIN"}
-    
-    url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin_number}?format=json"
-    res = requests.get(url)
-    data = res.json().get("Results", [{}])[0]
-    
-    return {
-        "Make": data.get("Make", "N/A"),
-        "Model": data.get("Model", "N/A"),
-        "Year": data.get("ModelYear", "N/A"),
-        "Body": data.get("BodyClass", "N/A"),
-        "Drive": data.get("DriveType", "N/A")
-    }
+        if os.path.exists(file_location):
+            os.remove(file_location)
 
 @app.post("/chat/")
 async def chat_assistant(request: ChatRequest):
+    # Strict prompt to stop Markdown (the ** stars)
     prompt = f"""
     Context: {contract_memory['text'][:3000]}
     Question: {request.message}
     
     Rules:
-    - NO Markdown. Do NOT use stars (**) or hashtags (#). 
-    - Use plain text only.
+    - Use PLAIN TEXT ONLY. 
+    - DO NOT use any stars (**) or hashtags (#).
     - Max 3 short bullet points using simple dashes (-).
-    - If it's a bad deal, start with: ATTENTION: BAD DEAL.
+    - Be conversational and very simple.
     """
     try:
         response = client.chat.completions.create(
@@ -107,4 +114,4 @@ async def chat_assistant(request: ChatRequest):
         )
         return {"response": response.choices[0].message.content}
     except:
-        return {"response": "System busy. Try again!"}
+        return {"response": "I'm a bit busy. Please ask again!"}
