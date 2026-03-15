@@ -6,7 +6,7 @@ import re
 import shutil
 import os
 import requests
-from openai import OpenAI
+import google.generativeai as genai
 
 app = FastAPI()
 
@@ -18,8 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Configure Gemini AI
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 
 @app.get("/")
@@ -28,6 +29,7 @@ def home():
 
 
 def extract_text_from_pdf(file_path):
+
     doc = fitz.open(file_path)
     text = ""
 
@@ -174,9 +176,9 @@ async def chat_assistant(
 You are DealGuard AI, an assistant that reviews vehicle purchase or lease contracts.
 
 Your tasks:
-1. Identify risky or unfair clauses.
-2. Explain contract terms clearly.
-3. Suggest negotiation strategies if needed.
+1. Identify risky or unfair clauses
+2. Explain contract terms clearly
+3. Suggest negotiation strategies
 
 Contract Text:
 {contract_text}
@@ -189,19 +191,9 @@ Give short, clear, practical advice.
 
     try:
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful vehicle contract risk analysis assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=250,
-            temperature=0.4
-        )
+        response = model.generate_content(prompt)
 
-        reply = response.choices[0].message.content
-
-        return {"response": reply}
+        return {"response": response.text}
 
     except Exception as e:
         return {"response": f"AI error: {str(e)}"}
