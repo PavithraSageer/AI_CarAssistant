@@ -1,8 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, Body
+from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import fitz  # PyMuPDF
+import fitz 
 import re
 import shutil
 import os
@@ -11,7 +11,6 @@ from openai import OpenAI
 
 app = FastAPI()
 
-# Allow Lovable to connect to Render
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,51 +24,46 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-# Shared memory for the session
 contract_memory = {"text": ""}
 
 class ChatRequest(BaseModel):
     message: str
 
-# --- Helper Functions for Extraction ---
-
 def extract_vin(text):
-    # Improved regex to find VINs even if there are weird spaces or labels
+    # Aggressive VIN cleaning
+    clean_text = re.sub(r'\s+', '', text)
     vin_pattern = r'[A-HJ-NPR-Z0-9]{17}'
-    matches = re.findall(vin_pattern, text.replace(" ", ""))
-    return matches[0] if matches else "VIN not found"
+    match = re.search(vin_pattern, clean_text)
+    return match.group(0) if match else "VIN not found"
 
 def calculate_fairness(text):
     score = 100
     issues = []
+    t = text.lower()
     
-    # Case-insensitive checks for common contract requirements
-    requirements = {
-        "Seller": r"(Seller|Dealer|Vendor)",
-        "Buyer": r"(Buyer|Purchaser|Customer)",
-        "Price": r"(Price|Amount|Total|Purchase Price)",
-        "Date": r"(Date|Executed on)",
-        "Signature": r"(Signature|Signed)"
-    }
+    # HARSH PENALTIES
+    if "as-is" in t or "no warranty" in t:
+        score -= 30
+        issues.append("AS-IS Clause: You have zero protection if the car breaks tomorrow.")
+    
+    if "non-refundable" in t:
+        score -= 20
+        issues.append("Non-Refundable Deposit: You lose your money even if you find a major mechanical flaw.")
 
-    for label, pattern in requirements.items():
-        if not re.search(pattern, text, re.IGNORECASE):
-            score -= 15
-            issues.append(f"Missing {label} information or signature block.")
+    if "assumes all risk" in t or "buyer's risk" in t:
+        score -= 20
+        issues.append("High Liability: Seller is pushing all legal responsibility onto you.")
 
-    suspicious = ["as-is", "no warranty", "waive all rights", "non-refundable"]
-    for word in suspicious:
-        if word.lower() in text.lower():
-            score -= 10
-            issues.append(f"Caution: '{word}' clause detected.")
+    # Missing Essentials
+    if not re.search(r"price|amount|\$", t):
+        score -= 15
+        issues.append("Price not clearly defined.")
+    
+    if "signature" not in t:
+        score -= 15
+        issues.append("Missing signature lines.")
 
     return max(0, score), issues
-
-# --- API Endpoints ---
-
-@app.get("/")
-def home():
-    return {"message": "DealGuard API is Live"}
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
@@ -77,69 +71,46 @@ async def upload_file(file: UploadFile = File(...)):
     try:
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-
         doc = fitz.open(file_location)
-        extracted_text = ""
-        for page in doc:
-            extracted_text += page.get_text()
+        text = "".join([page.get_text() for page in doc])
+        contract_memory["text"] = text
         
-        # Save to memory
-        contract_memory["text"] = extracted_text
-        
-        vin = extract_vin(extracted_text)
-        fairness_score, issues = calculate_fairness(extracted_text)
-        
-        risk = "Low Risk" if fairness_score >= 85 else "Medium Risk" if fairness_score >= 60 else "High Risk"
+        vin = extract_vin(text)
+        score, issues = calculate_fairness(text)
+        risk = "Low" if score > 85 else "Medium" if score > 60 else "High"
 
-        return {
-            "vin": vin,
-            "fairness_score": fairness_score,
-            "risk_level": risk,
-            "issues": issues,
-            "extracted_text": extracted_text[:2000] # Send sample to frontend
-        }
+        return {"vin": vin, "fairness_score": score, "risk_level": risk, "issues": issues}
     finally:
-        if os.path.exists(file_location):
-            os.remove(file_location)
+        if os.path.exists(file_location): os.remove(file_location)
 
 @app.get("/vin/{vin_number}")
 def vin_lookup(vin_number: str):
-    if vin_number == "VIN not found":
-        return {"error": "No VIN provided"}
-        
-    url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin_number}?format=json"
-    response = requests.get(url)
-    data = response.json()
-
-    if data.get("Results"):
-        car = data["Results"][0]
-        return {
-            "Make": car.get("Make"),
-            "Model": car.get("Model"),
-            "Year": car.get("ModelYear"),
-            "Body": car.get("BodyClass"),
-            "Engine": car.get("EngineModel"),
-            "Fuel": car.get("FuelTypePrimary")
-        }
-    return {"error": "Vehicle details not found"}
+    if len(vin_number) < 17: return {"error": "Invalid VIN"}
+    res = requests.get(f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin_number}?format=json")
+    data = res.json().get("Results", [{}])[0]
+    return {
+        "Make": data.get("Make", "Unknown"),
+        "Model": data.get("Model", "Unknown"),
+        "Year": data.get("ModelYear", "Unknown"),
+        "Body": data.get("BodyClass", "Unknown")
+    }
 
 @app.post("/chat/")
 async def chat_assistant(request: ChatRequest):
-    # List of models to try if "Limit Exceeded" happens
-    models = ["openrouter/free", "meta-llama/llama-3.3-70b-instruct:free", "mistralai/mistral-small-3.1-24b-instruct:free"]
+    prompt = f"""
+    CONTRACT CONTEXT: {contract_memory['text'][:3000]}
+    USER QUESTION: {request.message}
     
-    for model_id in models:
-        try:
-            response = client.chat.completions.create(
-                model=model_id,
-                messages=[
-                    {"role": "system", "content": "You are DealGuard AI, a professional car contract legal assistant."},
-                    {"role": "user", "content": f"Context: {contract_memory['text'][:3500]}\n\nQuestion: {request.message}"}
-                ],
-                timeout=20
-            )
-            return {"response": response.choices[0].message.content}
-        except Exception:
-            continue # Try next model
-            
-    return {"response": "All AI lanes are full. Please try again in 30 seconds."}
+    INSTRUCTIONS: 
+    1. Be extremely concise. Use max 3 bullet points.
+    2. Use simple language (no legalese).
+    3. If it's a bad deal, say it clearly.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="openrouter/free",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return {"response": response.choices[0].message.content}
+    except:
+        return {"response": "I'm a bit overwhelmed. Ask me again in a second!"}
