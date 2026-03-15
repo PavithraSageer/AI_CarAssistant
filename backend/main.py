@@ -29,8 +29,12 @@ contract_memory = {"text": ""}
 class ChatRequest(BaseModel):
     message: str
 
+@app.get("/")
+def home():
+    return {"status": "Online", "message": "DealGuard API is running"}
+
 def extract_vin(text):
-    # Aggressive VIN cleaning
+    # Cleans spaces and looks for 17 chars
     clean_text = re.sub(r'\s+', '', text)
     vin_pattern = r'[A-HJ-NPR-Z0-9]{17}'
     match = re.search(vin_pattern, clean_text)
@@ -41,27 +45,22 @@ def calculate_fairness(text):
     issues = []
     t = text.lower()
     
-    # HARSH PENALTIES
+    # CRITICAL PENALTIES (To ensure risky deals get ~40%)
     if "as-is" in t or "no warranty" in t:
-        score -= 30
-        issues.append("AS-IS Clause: You have zero protection if the car breaks tomorrow.")
+        score -= 35
+        issues.append("AS-IS: No protection if the car breaks.")
     
     if "non-refundable" in t:
-        score -= 20
-        issues.append("Non-Refundable Deposit: You lose your money even if you find a major mechanical flaw.")
+        score -= 25
+        issues.append("Non-Refundable: You lose your deposit no matter what.")
 
     if "assumes all risk" in t or "buyer's risk" in t:
         score -= 20
-        issues.append("High Liability: Seller is pushing all legal responsibility onto you.")
+        issues.append("High Liability: You take all legal blame.")
 
-    # Missing Essentials
-    if not re.search(r"price|amount|\$", t):
-        score -= 15
-        issues.append("Price not clearly defined.")
-    
-    if "signature" not in t:
-        score -= 15
-        issues.append("Missing signature lines.")
+    if "no responsibility" in t or "seller not liable" in t:
+        score -= 10
+        issues.append("Seller Protection: Seller is legally untouchable.")
 
     return max(0, score), issues
 
@@ -85,7 +84,8 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/vin/{vin_number}")
 def vin_lookup(vin_number: str):
-    if len(vin_number) < 17: return {"error": "Invalid VIN"}
+    if len(vin_number) < 17 or "not found" in vin_number.lower():
+        return {"error": "Invalid VIN"}
     res = requests.get(f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin_number}?format=json")
     data = res.json().get("Results", [{}])[0]
     return {
@@ -97,20 +97,21 @@ def vin_lookup(vin_number: str):
 
 @app.post("/chat/")
 async def chat_assistant(request: ChatRequest):
+    # Prompt engineering to force SIMPLE, SHORT replies
     prompt = f"""
-    CONTRACT CONTEXT: {contract_memory['text'][:3000]}
-    USER QUESTION: {request.message}
+    Context: {contract_memory['text'][:3000]}
+    Question: {request.message}
     
-    INSTRUCTIONS: 
-    1. Be extremely concise. Use max 3 bullet points.
-    2. Use simple language (no legalese).
-    3. If it's a bad deal, say it clearly.
+    Rules:
+    - Explain like I'm 5 years old.
+    - Max 3 short bullet points.
+    - If it's a bad deal, start with "⚠️ BAD DEAL."
     """
     try:
         response = client.chat.completions.create(
-            model="openrouter/free",
+            model="openrouter/free", # Uses whatever is available
             messages=[{"role": "user", "content": prompt}]
         )
         return {"response": response.choices[0].message.content}
     except:
-        return {"response": "I'm a bit overwhelmed. Ask me again in a second!"}
+        return {"response": "System busy. Try again!"}
