@@ -1,11 +1,11 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import fitz 
+import fitz  # PyMuPDF
 import re
 import shutil
 import os
 import requests
+import uuid
 from openai import OpenAI
 
 app = FastAPI()
@@ -18,6 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# OpenRouter Configuration
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY")
@@ -25,70 +26,95 @@ client = OpenAI(
 
 contract_memory = {"text": ""}
 
-class ChatRequest(BaseModel):
-    message: str
-
 @app.get("/")
 def home():
-    return {"status": "Online"}
+    return {"message": "DealGuard Backend is officially LIVE and READY"}
 
 def get_vehicle_details(vin):
+    """Fetches specs from NHTSA API."""
     if not vin or len(vin) < 17 or "not found" in vin.lower():
         return None
     try:
         url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin}?format=json"
         res = requests.get(url, timeout=5)
         data = res.json().get("Results", [{}])[0]
-        # Return both casing formats to be 100% safe for the frontend
         return {
             "make": data.get("Make"),
             "model": data.get("Model"),
             "year": data.get("ModelYear"),
-            "body": data.get("BodyClass"),
-            "Make": data.get("Make"),
-            "Model": data.get("Model"),
-            "Year": data.get("ModelYear"),
-            "Body": data.get("BodyClass")
+            "body": data.get("BodyClass")
         }
+    except:
+        return None
+
+def extract_vin_with_llm(text_sample):
+    """Fallback: Uses AI to find the VIN if Regex grabs the title."""
+    try:
+        prompt = "Find the 17-character VIN in this text. Look for labels like 'VIN', 'Vehicle ID', or 'Serial Number'. Return ONLY the 17-character VIN string. Text: " + text_sample[:3000]
+        response = client.chat.completions.create(
+            model="openrouter/free",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        found_vin = response.choices[0].message.content.strip()
+        # Clean up in case LLM added extra words
+        match = re.search(r'[A-HJ-NPR-Z0-9]{17}', found_vin.upper())
+        return match.group(0) if match else None
     except:
         return None
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
-    file_location = f"temp_{file.filename}"
+    unique_filename = f"{uuid.uuid4()}_{file.filename}"
+    file_location = f"temp_{unique_filename}"
+    
     try:
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
         doc = fitz.open(file_location)
         text = "".join([page.get_text() for page in doc])
+        doc.close()
+        
         contract_memory["text"] = text
         
-        # Aggressive VIN cleaning
+        # 1. Improved Regex: Look for 17 chars but IGNORE titles like 'LEASEAGREEMENT'
         clean_text = re.sub(r'\s+', '', text)
         vin_match = re.search(r'[A-HJ-NPR-Z0-9]{17}', clean_text)
-        vin = vin_match.group(0) if vin_match else "Not Found"
+        vin = vin_match.group(0) if vin_match else None
         
-        specs = get_vehicle_details(vin)
+        # Validation: If it looks like a document title, it's not a VIN
+        if vin and any(word in vin for word in ["LEASE", "AGREE", "VEHIC"]):
+            vin = None
         
+        # 2. LLM Backup: If Regex failed or grabbed junk, use the AI
+        if not vin:
+            vin = extract_vin_with_llm(text)
+        
+        final_vin = vin if vin else "Not Found"
+        specs = get_vehicle_details(final_vin)
+        
+        # Scoring Logic
         score = 100
-        issues = []
         t = text.lower()
-        if "as-is" in t or "no warranty" in t: score -= 35; issues.append("AS-IS: No protection.")
-        if "non-refundable" in t: score -= 25; issues.append("Non-Refundable Deposit.")
-        if "assumes all risk" in t: score -= 20; issues.append("High Liability.")
+        if "as-is" in t or "no warranty" in t: score -= 35
+        if "non-refundable" in t: score -= 25
+        if "assumes all risk" in t or "indemnify" in t: score -= 20
 
         return {
-            "vin": vin,
+            "vin": final_vin,
             "fairness_score": max(0, score),
-            "issues": issues,
             "specs": specs
         }
+    except Exception as e:
+        return {"error": str(e)}
     finally:
-        if os.path.exists(file_location): os.remove(file_location)
+        if os.path.exists(file_location):
+            os.remove(file_location)
 
 @app.post("/chat/")
-async def chat_assistant(request: ChatRequest):
-    prompt = f"Contract: {contract_memory['text'][:3000]}\nQuestion: {request.message}\nRules: Plain text, no stars, no markdown, max 3 points."
+async def chat_assistant(message_data: dict):
+    user_msg = message_data.get("message", "")
+    prompt = f"Contract Content: {contract_memory['text'][:3000]}\nUser Question: {user_msg}\nRules: Plain text, NO markdown, NO stars, be concise."
     try:
         response = client.chat.completions.create(
             model="openrouter/free",
@@ -96,4 +122,4 @@ async def chat_assistant(request: ChatRequest):
         )
         return {"response": response.choices[0].message.content}
     except:
-        return {"response": "System busy."}
+        return {"response": "I'm having trouble connecting to the AI. Please try again."}
