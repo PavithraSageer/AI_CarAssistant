@@ -31,7 +31,7 @@ def home():
     return {"message": "DealGuard Backend is officially LIVE and READY"}
 
 def get_vehicle_details(vin):
-    """Fetches specs from NHTSA API."""
+    """Fetches comprehensive specs from NHTSA API."""
     if not vin or len(vin) < 17 or "not found" in vin.lower():
         return None
     try:
@@ -42,7 +42,11 @@ def get_vehicle_details(vin):
             "make": data.get("Make"),
             "model": data.get("Model"),
             "year": data.get("ModelYear"),
-            "body": data.get("BodyClass")
+            "body": data.get("BodyClass"),
+            "fuel": data.get("FuelTypePrimary"),
+            "drive": data.get("DriveType"),
+            "cylinders": data.get("EngineCylinders"),
+            "hp": data.get("EngineHP")
         }
     except:
         return None
