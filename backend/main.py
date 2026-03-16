@@ -23,7 +23,6 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-# In-memory storage for the AI context
 contract_memory = {"text": ""}
 
 class ChatRequest(BaseModel):
@@ -31,7 +30,7 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "Online", "service": "DealGuard"}
+    return {"status": "Online"}
 
 def get_vehicle_details(vin):
     if not vin or len(vin) < 17 or "not found" in vin.lower():
@@ -40,8 +39,12 @@ def get_vehicle_details(vin):
         url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin}?format=json"
         res = requests.get(url, timeout=5)
         data = res.json().get("Results", [{}])[0]
-        # Consolidating specs into a clean object
+        # Return both casing formats to be 100% safe for the frontend
         return {
+            "make": data.get("Make"),
+            "model": data.get("Model"),
+            "year": data.get("ModelYear"),
+            "body": data.get("BodyClass"),
             "Make": data.get("Make"),
             "Model": data.get("Model"),
             "Year": data.get("ModelYear"),
@@ -56,57 +59,36 @@ async def upload_file(file: UploadFile = File(...)):
     try:
         with open(file_location, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
         doc = fitz.open(file_location)
         text = "".join([page.get_text() for page in doc])
         contract_memory["text"] = text
         
-        # Aggressive VIN extraction (strips spaces first)
+        # Aggressive VIN cleaning
         clean_text = re.sub(r'\s+', '', text)
         vin_match = re.search(r'[A-HJ-NPR-Z0-9]{17}', clean_text)
         vin = vin_match.group(0) if vin_match else "Not Found"
         
-        # Fetch specs immediately so the frontend has them in one go
         specs = get_vehicle_details(vin)
         
-        # Harsher scoring for risky deals
         score = 100
         issues = []
         t = text.lower()
-        if "as-is" in t or "no warranty" in t:
-            score -= 35
-            issues.append("AS-IS: No protection if the car breaks.")
-        if "non-refundable" in t:
-            score -= 25
-            issues.append("Non-Refundable Deposit: High risk of losing money.")
-        if "assumes all risk" in t:
-            score -= 20
-            issues.append("High Liability: Seller is not responsible for defects.")
+        if "as-is" in t or "no warranty" in t: score -= 35; issues.append("AS-IS: No protection.")
+        if "non-refundable" in t: score -= 25; issues.append("Non-Refundable Deposit.")
+        if "assumes all risk" in t: score -= 20; issues.append("High Liability.")
 
         return {
             "vin": vin,
             "fairness_score": max(0, score),
-            "risk_level": "High" if score < 60 else "Medium" if score < 85 else "Low",
             "issues": issues,
-            "specs": specs # Included in the primary response
+            "specs": specs
         }
     finally:
-        if os.path.exists(file_location):
-            os.remove(file_location)
+        if os.path.exists(file_location): os.remove(file_location)
 
 @app.post("/chat/")
 async def chat_assistant(request: ChatRequest):
-    # Strict prompt to stop Markdown (the ** stars)
-    prompt = f"""
-    Context: {contract_memory['text'][:3000]}
-    Question: {request.message}
-    
-    Rules:
-    - Use PLAIN TEXT ONLY. 
-    - DO NOT use any stars (**) or hashtags (#).
-    - Max 3 short bullet points using simple dashes (-).
-    - Be conversational and very simple.
-    """
+    prompt = f"Contract: {contract_memory['text'][:3000]}\nQuestion: {request.message}\nRules: Plain text, no stars, no markdown, max 3 points."
     try:
         response = client.chat.completions.create(
             model="openrouter/free",
@@ -114,4 +96,4 @@ async def chat_assistant(request: ChatRequest):
         )
         return {"response": response.choices[0].message.content}
     except:
-        return {"response": "I'm a bit busy. Please ask again!"}
+        return {"response": "System busy."}
