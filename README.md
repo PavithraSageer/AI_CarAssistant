@@ -1,15 +1,23 @@
 DealGuard: AI-Driven Contract Auditor 
+
 DealGuard is a minimalist, high-precision digital auditor designed to dismantle the "Jargon Barrier" in automotive financing. By combining high-speed PDF extraction with a weighted risk-scoring algorithm, it transforms 50-page predatory contracts into clear, actionable safety reports.
 
 The Core Mission
+
 Car buyers often face "Legal Fatigue," signing dense contracts containing hidden fees and "As-Is" clauses. DealGuard acts as a Digital Shield, using AI to extract the 5% of text that actually impacts the buyer's wallet.
 
 The Tech Stack
+
 Frontend: React.js (Clean, Sidebar-free UI for cognitive focus)
+
 Backend: FastAPI (High-concurrency Python framework)
+
 Database: Supabase (PostgreSQL with Row-Level Security)
+
 AI Engine: Arcee Trinity-Mini (Tuned to 0.3 Temperature for factual precision)
+
 Parsing: PyMuPDF (fitz) & Regex Pattern Matching
+
 
 Key Features
 1. The X-Ray Pipeline
