@@ -8,7 +8,7 @@ Car buyers often face "Legal Fatigue," signing dense contracts containing hidden
 
 
 
-The Tech Stack
+=>The Tech Stack
 
 Frontend: React.js (Clean, Sidebar-free UI for cognitive focus)
 
@@ -22,7 +22,7 @@ Parsing: PyMuPDF (fitz) & Regex Pattern Matching
 
 
 
-Key Features
+=>Key Features
 1. The X-Ray Pipeline
    
     Uses PyMuPDF to bypass slow OCR, extracting the raw text layer in milliseconds. Custom Regex logic identifies the 17-character VIN and financial figures before the AI even starts, saving tokens and ensuring 100% accuracy on vehicle data.
@@ -42,7 +42,7 @@ Key Features
    
 
 
-Future Roadmap
+=>Future Roadmap
 
 Automated Negotiation: Generating structured dispute letters based on detected red flags.
 
@@ -52,15 +52,15 @@ Historical Benchmarking: Tracking dealership patterns to identify recurring pred
 
 
 
-Installation & Setup
+=>Installation & Setup
 
-Clone the repository:
+1) Clone the repository:
 
   Bash
   
    git clone https://github.com/your-username/dealguard.git
    
-Setup Backend:
+2) Setup Backend:
 
   Bash
   
@@ -70,7 +70,7 @@ Setup Backend:
    
    uvicorn main:app --reload
    
-Setup Frontend:
+3) Setup Frontend:
 
   Bash
   
@@ -83,6 +83,6 @@ Setup Frontend:
 
 
 
-Author
+=>Author
 
 Pavithra S |AI Domain Intern 
