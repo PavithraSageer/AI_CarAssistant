@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import fitz  # PyMuPDF
+import fitz  
 import re
 import shutil
 import os
@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenRouter Configuration
+
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY")
@@ -60,7 +60,7 @@ def extract_vin_with_llm(text_sample):
             messages=[{"role": "user", "content": prompt}]
         )
         found_vin = response.choices[0].message.content.strip()
-        # Clean up in case LLM added extra words
+      
         match = re.search(r'[A-HJ-NPR-Z0-9]{17}', found_vin.upper())
         return match.group(0) if match else None
     except:
@@ -81,23 +81,23 @@ async def upload_file(file: UploadFile = File(...)):
         
         contract_memory["text"] = text
         
-        # 1. Improved Regex: Look for 17 chars but IGNORE titles like 'LEASEAGREEMENT'
+        
         clean_text = re.sub(r'\s+', '', text)
         vin_match = re.search(r'[A-HJ-NPR-Z0-9]{17}', clean_text)
         vin = vin_match.group(0) if vin_match else None
         
-        # Validation: If it looks like a document title, it's not a VIN
+        
         if vin and any(word in vin for word in ["LEASE", "AGREE", "VEHIC"]):
             vin = None
         
-        # 2. LLM Backup: If Regex failed or grabbed junk, use the AI
+        
         if not vin:
             vin = extract_vin_with_llm(text)
         
         final_vin = vin if vin else "Not Found"
         specs = get_vehicle_details(final_vin)
         
-        # Scoring Logic
+        
         score = 100
         t = text.lower()
         if "as-is" in t or "no warranty" in t: score -= 35
