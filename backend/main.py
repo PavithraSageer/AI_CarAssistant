@@ -1,15 +1,14 @@
-from fastapi import FastAPI, UploadFile, File, Body
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import fitz
+import fitz  
 import re
 import shutil
 import os
 import requests
+import uuid
 from openai import OpenAI
 
 app = FastAPI()
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,202 +18,112 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-
-contract_memory = {
-    "text": ""
-}
+contract_memory = {"text": ""}
 
 @app.get("/")
 def home():
-    return {"message": "DealGuard Car Contract Analyzer API Running"}
+    return {"message": "DealGuard Backend is officially LIVE and READY"}
 
+def get_vehicle_details(vin):
+    """Fetches comprehensive specs from NHTSA API."""
+    if not vin or len(vin) < 17 or "not found" in vin.lower():
+        return None
+    try:
+        url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin}?format=json"
+        res = requests.get(url, timeout=5)
+        data = res.json().get("Results", [{}])[0]
+        return {
+            "make": data.get("Make"),
+            "model": data.get("Model"),
+            "year": data.get("ModelYear"),
+            "body": data.get("BodyClass"),
+            "fuel": data.get("FuelTypePrimary"),
+            "drive": data.get("DriveType"),
+            "cylinders": data.get("EngineCylinders"),
+            "hp": data.get("EngineHP")
+        }
+    except:
+        return None
 
-
-def extract_text_from_pdf(file_path):
-
-    doc = fitz.open(file_path)
-    text = ""
-
-    for page in doc:
-        text += page.get_text()
-
-    return text
-
-
-def extract_vin(text):
-
-    vin_pattern = r'\b[A-HJ-NPR-Z0-9]{17}\b'
-    matches = re.findall(vin_pattern, text)
-
-    if matches:
-        return matches[0]
-
-    return "VIN not found"
-
-
-def calculate_fairness(text):
-
-    score = 100
-    issues = []
-
-    if not re.search(r"Seller Name:", text):
-        score -= 15
-        issues.append("Missing seller name")
-
-    if not re.search(r"Buyer Name:", text):
-        score -= 15
-        issues.append("Missing buyer name")
-
-    if not re.search(r"VIN:\s*[A-HJ-NPR-Z0-9]{17}", text):
-        score -= 20
-        issues.append("Missing or invalid VIN")
-
-    if not re.search(r"Sale Price:", text):
-        score -= 15
-        issues.append("Sale price missing")
-
-    if not re.search(r"Date:", text):
-        score -= 10
-        issues.append("Date missing")
-
-    if "Seller Signature" not in text:
-        score -= 10
-        issues.append("Seller signature missing")
-
-    if "Buyer Signature" not in text:
-        score -= 10
-        issues.append("Buyer signature missing")
-
-    suspicious_clauses = [
-        "sold as-is",
-        "no responsibility",
-        "buyer assumes all risk"
-    ]
-
-    for clause in suspicious_clauses:
-        if clause.lower() in text.lower():
-            score -= 20
-            issues.append("Suspicious clause detected: " + clause)
-
-    if score < 0:
-        score = 0
-
-    return score, issues
-
-
-
-def risk_level(score):
-
-    if score >= 90:
-        return "Low Risk"
-
-    elif score >= 70:
-        return "Medium Risk"
-
-    else:
-        return "High Risk"
-
-
+def extract_vin_with_llm(text_sample):
+    """Fallback: Uses AI to find the VIN if Regex grabs the title."""
+    try:
+        prompt = "Find the 17-character VIN in this text. Look for labels like 'VIN', 'Vehicle ID', or 'Serial Number'. Return ONLY the 17-character VIN string. Text: " + text_sample[:3000]
+        response = client.chat.completions.create(
+            model="openrouter/free",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        found_vin = response.choices[0].message.content.strip()
+      
+        match = re.search(r'[A-HJ-NPR-Z0-9]{17}', found_vin.upper())
+        return match.group(0) if match else None
+    except:
+        return None
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
-
-    file_location = f"temp_{file.filename}"
-
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    extracted_text = extract_text_from_pdf(file_location)
-
-    vin = extract_vin(extracted_text)
-
-    fairness_score, issues = calculate_fairness(extracted_text)
-
-    risk = risk_level(fairness_score)
-
-    os.remove(file_location)
-
- 
-    contract_memory["text"] = extracted_text
-
-    return JSONResponse(
-        content={
-            "filename": file.filename,
-            "vin": vin,
-            "fairness_score": fairness_score,
-            "risk_level": risk,
-            "issues": issues,
-            "extracted_text": extracted_text
-        }
-    )
-
-
-
-@app.get("/vin/{vin_number}")
-def vin_lookup(vin_number: str):
-
-    url = f"https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/{vin_number}?format=json"
-
-    response = requests.get(url)
-    data = response.json()
-
-    if data["Results"]:
-        car = data["Results"][0]
+    unique_filename = f"{uuid.uuid4()}_{file.filename}"
+    file_location = f"temp_{unique_filename}"
+    
+    try:
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        doc = fitz.open(file_location)
+        text = "".join([page.get_text() for page in doc])
+        doc.close()
+        
+        contract_memory["text"] = text
+        
+        
+        clean_text = re.sub(r'\s+', '', text)
+        vin_match = re.search(r'[A-HJ-NPR-Z0-9]{17}', clean_text)
+        vin = vin_match.group(0) if vin_match else None
+        
+        
+        if vin and any(word in vin for word in ["LEASE", "AGREE", "VEHIC"]):
+            vin = None
+        
+        
+        if not vin:
+            vin = extract_vin_with_llm(text)
+        
+        final_vin = vin if vin else "Not Found"
+        specs = get_vehicle_details(final_vin)
+        
+        
+        score = 100
+        t = text.lower()
+        if "as-is" in t or "no warranty" in t: score -= 35
+        if "non-refundable" in t: score -= 25
+        if "assumes all risk" in t or "indemnify" in t: score -= 20
 
         return {
-            "VIN": vin_number,
-            "Make": car.get("Make"),
-            "Model": car.get("Model"),
-            "Year": car.get("ModelYear"),
-            "BodyClass": car.get("BodyClass"),
-            "Engine": car.get("EngineModel"),
-            "FuelType": car.get("FuelTypePrimary")
+            "vin": final_vin,
+            "fairness_score": max(0, score),
+            "specs": specs
         }
-
-    return {"error": "VIN not found"}
-
-
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        if os.path.exists(file_location):
+            os.remove(file_location)
 
 @app.post("/chat/")
-async def chat_assistant(message: str = Body(...)):
-
-    contract_text = contract_memory.get("text", "")
-
-    prompt = f"""
-You are DealGuard AI, a car contract assistant.
-
-A user uploaded a vehicle contract.
-
-Contract Text:
-{contract_text}
-
-User Question:
-{message}
-
-Answer clearly and give helpful negotiation or safety advice.
-If the answer is not in the contract, say so.
-"""
-
+async def chat_assistant(message_data: dict):
+    user_msg = message_data.get("message", "")
+    prompt = f"Contract Content: {contract_memory['text'][:3000]}\nUser Question: {user_msg}\nRules: Plain text, NO markdown, NO stars, be concise."
     try:
-
         response = client.chat.completions.create(
-            model="arcee-ai/trinity-mini:free",
-            messages=[
-                {"role": "system", "content": "You are a vehicle contract expert."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3
+            model="openrouter/free",
+            messages=[{"role": "user", "content": prompt}]
         )
-
-        reply = response.choices[0].message.content
-
-        return {"response": reply}
-
-    except Exception as e:
-
-        return {"response": f"AI error: {str(e)}"}
+        return {"response": response.choices[0].message.content}
+    except:
+        return {"response": "I'm having trouble connecting to the AI. Please try again."}
