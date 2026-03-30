@@ -2,8 +2,8 @@
 
 **DealGuard** is a minimalist, high-precision digital auditor designed to dismantle the **"Jargon Barrier"** in automotive financing. By combining high-speed PDF extraction with a weighted risk-scoring algorithm, it transforms 50-page predatory contracts into clear, actionable safety reports.
 
-## 🔗 Project Access
-
+##  Project Access
+First launch the backend and then the frontend (links given below)
 | Component | Status | Access Link |
 | :--- | :--- | :--- |
 | **Live Frontend Dashboard** | 🟢 Online | [Launch DealGuard UI](https://www.google.com/search?q=https://lovable.dev/projects/9cb03158-d174-4a61-9814-25a956410346) |
@@ -12,11 +12,11 @@
 
 -----
 
-## 🎯 The Core Mission
+##  The Core Mission
 
 Car buyers often face **"Legal Fatigue,"** signing dense contracts containing hidden fees and "As-Is" clauses. DealGuard acts as a **Digital Shield**, using AI to extract the 5% of text that actually impacts the buyer's wallet.
 
-## 🛠️ The Tech Stack
+##  The Tech Stack
 
   * **Frontend:** React.js (Clean, Sidebar-free UI for cognitive focus)
   * **Backend:** FastAPI (High-concurrency Python framework)
@@ -26,7 +26,7 @@ Car buyers often face **"Legal Fatigue,"** signing dense contracts containing hi
 
 -----
 
-## ✨ Key Features
+##  Key Features
 
 ### 1\. The X-Ray Pipeline
 
@@ -46,7 +46,7 @@ A specialized implementation of the **Trinity-Mini LLM**. Tuned for low-temperat
 
 -----
 
-## 🚀 Installation & Setup
+##  Installation & Setup
 
 ### 1\. Clone the Repository
 
@@ -74,7 +74,7 @@ npm run dev
 
 -----
 
-## 🔮 Future Roadmap
+##  Future Roadmap
 
   * **Automated Negotiation:** Generating structured dispute letters based on detected red flags.
   * **Domain Expansion:** Porting logic to Home Rental Agreements and Insurance Policies.
@@ -82,7 +82,7 @@ npm run dev
 
 -----
 
-## 👤 Author
+##  Author
 
 **Pavithra S** *AI Domain Intern | Computer Science & Engineering*
 
