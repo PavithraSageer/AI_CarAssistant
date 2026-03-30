@@ -4,11 +4,11 @@
 
 ##  Project Access
 First launch the backend and then the frontend (links given below)
-| Component | Status | Access Link |
-| :--- | :--- | :--- |
-| **Live Frontend Dashboard** | 🟢 Online | [Launch DealGuard UI](https://www.google.com/search?q=https://lovable.dev/projects/9cb03158-d174-4a61-9814-25a956410346) |
-| **Live Backend** | 🟢 Online | [Launch DealGuard backend](https://ai-carassistant-1.onrender.com/) |
-| **Current Branch** | 🌿 Active | `AI_CarAssistant-Pavithra` |
+| Component | Access Link |
+| :--- | :--- |
+| **Live Frontend Dashboard** | [Launch DealGuard UI](https://www.google.com/search?q=https://lovable.dev/projects/9cb03158-d174-4a61-9814-25a956410346) |
+| **Live Backend** | [Launch DealGuard backend](https://ai-carassistant-1.onrender.com/) |
+| **Current Branch** | `AI_CarAssistant-Pavithra` |
 
 -----
 
