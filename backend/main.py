@@ -8,6 +8,7 @@ import requests
 import uuid
 from openai import OpenAI
 
+
 app = FastAPI()
 
 app.add_middleware(
