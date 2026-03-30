@@ -86,6 +86,5 @@ npm run dev
 
 **Pavithra S** *AI Domain Intern | Computer Science & Engineering*
 
------
 
-**Would you like me to help you create a "System Architecture" diagram (using Mermaid code) that you can paste directly into this README?**
+
