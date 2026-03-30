@@ -3,7 +3,8 @@
 **DealGuard** is a minimalist, high-precision digital auditor designed to dismantle the **"Jargon Barrier"** in automotive financing. By combining high-speed PDF extraction with a weighted risk-scoring algorithm, it transforms 50-page predatory contracts into clear, actionable safety reports.
 
 ##  Project Access
-First launch the backend and then the frontend (links given below)
+Best method is to use these links in case local hosting fails.
+First launch the backend and then the frontend (links given below).
 | Component | Access Link |
 | :--- | :--- |
 | **Live Backend** | [Launch DealGuard backend](https://ai-carassistant-1.onrender.com/) |
