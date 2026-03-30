@@ -6,8 +6,8 @@
 First launch the backend and then the frontend (links given below)
 | Component | Access Link |
 | :--- | :--- |
-| **Live Frontend Dashboard** | [Launch DealGuard UI](https://dealguard-aiscanner.lovable.app/) |
 | **Live Backend** | [Launch DealGuard backend](https://ai-carassistant-1.onrender.com/) |
+| **Live Frontend Dashboard** | [Launch DealGuard UI](https://dealguard-aiscanner.lovable.app/) |
 | **Current Branch** | `AI_CarAssistant-Pavithra` |
 
 -----
