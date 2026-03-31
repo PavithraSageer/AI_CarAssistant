@@ -2,16 +2,28 @@
 
 **DealGuard** is a minimalist, high-precision digital auditor designed to dismantle the **"Jargon Barrier"** in automotive financing. By combining high-speed PDF extraction with a weighted risk-scoring algorithm, it transforms 50-page predatory contracts into clear, actionable safety reports.
 
-##  Project Access
-Best method is to use these links in case local hosting fails.
-First launch the backend and then the frontend (links given below).
+##  Installation and Setup.
+First launch the backend using the link below.
 | Component | Access Link |
 | :--- | :--- |
 | **Live Backend** | [Launch DealGuard backend](https://ai-carassistant-1.onrender.com/) |
-| **Live Frontend Dashboard** | [Launch DealGuard UI](https://dealguard-aiscanner.lovable.app/) |
 | **Current Branch** | `AI_CarAssistant-Pavithra` |
 
+Next, launch the frontend as follows :
+### 1\. Clone the Repository
+
+```bash
+git clone https://github.com/PavithraSageer/AI_CarAssistant.git
+cd AI_CarAssistant
+git checkout AI_CarAssistant-Pavithra
 -----
+### 2\. Setup Frontend (The Interface)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ##  The Core Mission
 
@@ -44,34 +56,6 @@ Instead of subjective summaries, DealGuard calculates a **Fairness Score (0–10
 ### 3\. Jargon-to-English Chatbot
 
 A specialized implementation of the **Trinity-Mini LLM**. Tuned for low-temperature (0.3) determinism, it translates complex legalese into 5th-grade English without "hallucinating" advice.
-
------
-
-##  Installation & Setup
-
-### 1\. Clone the Repository
-
-```bash
-git clone https://github.com/PavithraSageer/AI_CarAssistant.git
-cd AI_CarAssistant
-git checkout AI_CarAssistant-Pavithra
-```
-
-### 2\. Setup Backend (The Engine)
-
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-### 3\. Setup Frontend (The Interface)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
 
 -----
 
