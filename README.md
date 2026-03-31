@@ -17,8 +17,8 @@ git clone https://github.com/PavithraSageer/AI_CarAssistant.git
 cd AI_CarAssistant
 git checkout AI_CarAssistant-Pavithra
 -----
+```
 ### 2\. Setup Frontend (The Interface)
-
 ```bash
 cd frontend
 npm install
