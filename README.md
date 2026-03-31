@@ -70,7 +70,7 @@ A specialized implementation of the **Trinity-Mini LLM**. Tuned for low-temperat
 -----
 
 ##  Screenshots and Demo
-|**Screenshots, Demo and PPT** | [Click here](https://drive.google.com/drive/folders/1o1YZho_Hr_IOBrh6dQpSdfudUfcYgj3v)|
+[**Click here to view screenshots, demo video and PPT**](https://drive.google.com/drive/folders/1o1YZho_Hr_IOBrh6dQpSdfudUfcYgj3v)|
 
 -----
 
